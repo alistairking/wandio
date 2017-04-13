@@ -33,25 +33,17 @@
 
 #include "config.h"
 #include "wandio.h"
+#include "curl-helper.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <pthread.h>
 #include <curl/curl.h>
 #include <assert.h>
 
 /* Libwandio IO module implementing an HTTP reader (using libcurl)
  */
-
-/* we lock calls to curl_global_init because it does non-thread-safe things, but
-   this is still a little sketchy because apparently it calls a bunch of
-   non-curl functions that are also not thread safe
-   (http://curl.haxx.se/mail/lib-2008-02/0126.html) and so users of libwandio
-   could be calling those when we call curl_global_init :( */
-static pthread_mutex_t cg_lock = PTHREAD_MUTEX_INITIALIZER;
-static int cg_init_cnt = 0;
 
 struct http_t {
          /* cURL multi handler */
@@ -180,13 +172,7 @@ io_t *http_open(const char *filename)
 
         io->source = &http_source;
 
-        /* set up global curl structures (see note above) */
-        pthread_mutex_lock(&cg_lock);
-        if (!cg_init_cnt) {
-                curl_global_init(CURL_GLOBAL_DEFAULT);
-        }
-        cg_init_cnt++;
-        pthread_mutex_unlock(&cg_lock);
+        curl_helper_safe_global_init();
 
         DATA(io)->multi = curl_multi_init();
         DATA(io)->curl  = curl_easy_init();
@@ -293,13 +279,7 @@ static void http_close(io_t *io)
         curl_easy_cleanup(DATA(io)->curl);
         curl_multi_cleanup(DATA(io)->multi);
 
-        /* clean up global curl structures (see note above) */
-        pthread_mutex_lock(&cg_lock);
-        assert(cg_init_cnt);
-        cg_init_cnt--;
-        if (!cg_init_cnt)
-                curl_global_cleanup();
-        pthread_mutex_unlock(&cg_lock);
+        curl_helper_safe_global_cleanup();
 
 	free(DATA(io)->buf);
 	free(io->data);
