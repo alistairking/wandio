@@ -119,7 +119,8 @@ static int64_t refill_buffer(io_t *io, int64_t len)
 		}
 		DATA(io)->buffer = buf_ptr;
 #else
-		res = 0;	/* << Silly warning */ 
+		res = 0;	/* << Silly warning */
+                (void)res;      /* << Another silly warning */
 		DATA(io)->buffer = malloc(DATA(io)->length);
 #endif
 	}

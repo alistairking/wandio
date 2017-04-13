@@ -218,6 +218,7 @@ static void stdio_wclose(iow_t *iow)
 	}
 #endif
 	err=write(DATA(iow)->fd, DATA(iow)->buffer, DATA(iow)->offset);
+        (void)err; /* squash unused-but-set-variable warning */
 	DATA(iow)->offset = 0;
 	close(DATA(iow)->fd);
 	free(iow->data);
