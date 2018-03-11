@@ -99,6 +99,26 @@ static size_t write_cb(char *ptr, size_t size, size_t nmemb, void *data)
 	return nbytes;
 }
 
+static int process_hdrs(io_t *io, char **hdrs, int hdrs_cnt)
+{
+        struct curl_slist *c_hdrs = NULL;
+        int i;
+
+        if (!hdrs || !hdrs_cnt) {
+                return 0;
+        }
+
+        for (i = 0; i < hdrs_cnt; i++) {
+                if ((c_hdrs = curl_slist_append(c_hdrs, hdrs[i])) == NULL) {
+                        return -1;
+                }
+        }
+
+        curl_easy_setopt(DATA(io)->curl, CURLOPT_HTTPHEADER, c_hdrs);
+
+        return 0;
+}
+
 static int prepare(io_t *io)
 {
         int rc;
@@ -159,9 +179,9 @@ static int fill_buffer(io_t *io)
 	return DATA(io)->l_buf;
 }
 
-io_t *http_open(const char *filename)
+io_t *http_open_hdrs(const char *filename, char **hdrs, int hdrs_cnt)
 {
-	io_t *io = malloc(sizeof(io_t));
+  	io_t *io = malloc(sizeof(io_t));
         if (!io) return NULL;
 	io->data = malloc(sizeof(struct http_t));
         if (!io->data) {
@@ -189,12 +209,22 @@ io_t *http_open(const char *filename)
         DATA(io)->m_buf = CURL_MAX_WRITE_SIZE * 2;
 	DATA(io)->buf = (uint8_t*)calloc(DATA(io)->m_buf, 1);
 
+        if (hdrs && process_hdrs(io, hdrs, hdrs_cnt) != 0) {
+                http_close(io);
+                return NULL;
+        }
+
 	if (prepare(io) < 0 || fill_buffer(io) <= 0) {
 		http_close(io);
 		return NULL;
 	}
 
 	return io;
+}
+
+io_t *http_open(const char *filename)
+{
+        return http_open_hdrs(filename, NULL, 0);
 }
 
 static int64_t http_read(io_t *io, void *buffer, int64_t len)
